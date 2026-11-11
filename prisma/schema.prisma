@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Boutique {
+  id        String    @id @default(cuid())
+  nom       String
+  ville     String
+  adresse   String
+  telephone String
+  actif     Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  produits  Produit[]
+  ventes    Vente[]
+  factures  Facture[]
+  devis     Devis[]
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  nom       String
+  telephone String?
+  email     String?
+  adresse   String?
+  createdAt DateTime  @default(now())
+  ventes    Vente[]
+  factures  Facture[]
+  devis     Devis[]
+  rappels   Rappel[]
+
+  @@index([nom])
+  @@index([telephone])
+}
+
+model Utilisateur {
+  id          String   @id @default(cuid())
+  identifiant String   @unique
+  nom         String
+  pin         String
+  role        String   @default("vendeur")
+  boutiqueId  String?
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([role])
+}
+
+model Produit {
+  id            String         @id @default(cuid())
+  boutiqueId    String
+  boutique      Boutique       @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  nom           String
+  sku           String
+  categorie     String
+  prixAchat     Int
+  prixVente     Int
+  stock         Int
+  seuil         Int
+  unite         String
+  createdAt     DateTime       @default(now())
+  ventesLignes  VenteLigne[]
+  factureLignes FactureLigne[]
+  devisLignes   DevisLigne[]
+
+  @@index([boutiqueId])
+}
+
+model Vente {
+  id           String      @id @default(cuid())
+  numero       String      @unique
+  boutiqueId   String
+  boutique     Boutique    @relation(fields: [boutiqueId], references: [id])
+  date         DateTime    @default(now())
+  total        Int
+  modePaiement String
+  statut       String
+  clientId     String?
+  client       Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientNom    String?
+  clientTel    String?
+  lignes       VenteLigne[]
+  paiements    Paiement[]
+
+  @@index([boutiqueId])
+  @@index([date])
+  @@index([clientId])
+}
+
+model VenteLigne {
+  id           String   @id @default(cuid())
+  venteId      String
+  vente        Vente    @relation(fields: [venteId], references: [id], onDelete: Cascade)
+  produitId    String?
+  produit      Produit? @relation(fields: [produitId], references: [id], onDelete: SetNull)
+  nom          String
+  prixUnitaire Int
+  quantite     Int
+}
+
+model Facture {
+  id         String         @id @default(cuid())
+  numero     String         @unique
+  boutiqueId String
+  boutique   Boutique       @relation(fields: [boutiqueId], references: [id])
+  clientId   String?
+  client     Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientNom  String
+  clientTel  String?
+  date       DateTime       @default(now())
+  echeance   DateTime
+  sousTotal  Int
+  tva        Int
+  total      Int
+  statut     String
+  lignes     FactureLigne[]
+  paiements  Paiement[]
+
+  @@index([boutiqueId])
+  @@index([date])
+  @@index([clientId])
+}
+
+model Devis {
+  id         String       @id @default(cuid())
+  numero     String       @unique
+  boutiqueId String
+  boutique   Boutique     @relation(fields: [boutiqueId], references: [id])
+  clientId   String?
+  client     Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientNom  String
+  clientTel  String?
+  date       DateTime     @default(now())
+  validite   DateTime
+  sousTotal  Int
+  tva        Int
+  total      Int
+  statut     String       @default("brouillon")
+  lignes     DevisLigne[]
+
+  @@index([boutiqueId])
+  @@index([date])
+  @@index([clientId])
+}
+
+model DevisLigne {
+  id           String   @id @default(cuid())
+  devisId      String
+  devis        Devis    @relation(fields: [devisId], references: [id], onDelete: Cascade)
+  produitId    String?
+  produit      Produit? @relation(fields: [produitId], references: [id], onDelete: SetNull)
+  nom          String
+  prixUnitaire Int
+  quantite     Int
+}
+
+model Rappel {
+  id        String    @id @default(cuid())
+  clientId  String
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type      String    @default("auto")
+  canal     String    @default("whatsapp")
+  message   String
+  montant   Int
+  statut    String    @default("en_attente")
+  date      DateTime  @default(now())
+  envoyeLe  DateTime?
+
+  @@index([clientId])
+  @@index([date])
+}
+
+model FactureLigne {
+  id           String   @id @default(cuid())
+  factureId    String
+  facture      Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  produitId    String?
+  produit      Produit? @relation(fields: [produitId], references: [id], onDelete: SetNull)
+  nom          String
+  prixUnitaire Int
+  quantite     Int
+}
+
+model Paiement {
+  id        String   @id @default(cuid())
+  reference String   @unique
+  date      DateTime @default(now())
+  operateur String
+  montant   Int
+  telephone String
+  statut    String
+  venteId   String?
+  vente     Vente?   @relation(fields: [venteId], references: [id], onDelete: SetNull)
+  factureId String?
+  facture   Facture? @relation(fields: [factureId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+}
+
+model Parametres {
+  id           Int     @id @default(1)
+  entreprise   String
+  ville        String
+  telephone    String
+  tva          Float   @default(19.25)
+  mtn          Boolean @default(true)
+  orange       Boolean @default(true)
+  logo         String?
+  rappelAuto   Boolean @default(true)
+  rappelJours  Int     @default(7)
+  whatsappModele String?
+}
