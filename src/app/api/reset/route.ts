@@ -23,7 +23,7 @@ export async function POST() {
       await tx.client.deleteMany();
       await tx.boutique.deleteMany();
       await tx.parametres.deleteMany();
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     const data = await chargerTout();
     return Response.json(data);

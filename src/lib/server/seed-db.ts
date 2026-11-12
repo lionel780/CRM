@@ -164,7 +164,7 @@ export async function seedDatabase(prisma: PrismaClient): Promise<boolean> {
         },
       });
     }
-  });
+  }, { timeout: 120000, maxWait: 10000 });
 
   return true;
 }

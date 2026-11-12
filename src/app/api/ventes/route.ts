@@ -104,7 +104,7 @@ export async function POST(req: Request) {
       }
 
       return cree;
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     return ok(mapVente(vente), 201);
   } catch (e) {

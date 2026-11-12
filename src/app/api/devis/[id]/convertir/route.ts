@@ -45,7 +45,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
       await tx.devis.update({ where: { id: devis.id }, data: { statut: "accepte" } });
       return cree;
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     return ok(mapFacture(facture), 201);
   } catch (e) {

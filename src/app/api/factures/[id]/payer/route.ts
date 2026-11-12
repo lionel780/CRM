@@ -35,7 +35,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         data: { statut: "payee" },
         include: { lignes: true },
       });
-    });
+    }, { timeout: 20000, maxWait: 10000 });
 
     return ok(mapFacture(maj));
   } catch (e) {
