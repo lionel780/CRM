@@ -39,7 +39,8 @@ export async function POST(req: Request) {
     });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
     return res;
-  } catch {
+  } catch (error) {
+    console.error("[auth/login]", error);
     return NextResponse.json({ error: "Erreur de connexion." }, { status: 500 });
   }
 }
