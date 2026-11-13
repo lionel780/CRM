@@ -17,7 +17,7 @@ export async function verifierAcces(roles: Role[]): Promise<Acces> {
   }
   if (!roles.includes(session.role)) {
     return {
-      response: Response.json({ error: "Accès réservé à l'administrateur." }, { status: 403 }),
+      response: Response.json({ error: "Accès non autorisé pour votre rôle." }, { status: 403 }),
     };
   }
   return { session };

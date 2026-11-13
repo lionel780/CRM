@@ -4,6 +4,7 @@ import { fail, lireJson, messageErreur, nouveauReference, ok } from "@/lib/serve
 import { operateurDeMode, prochainNumeroVente } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
 import { resoudreClient } from "@/lib/server/clients";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ const MODES = ["espece", "mtn_momo", "orange_money", "credit"];
 
 export async function POST(req: Request) {
   try {
-    const acces = await verifierAcces(["admin", "vendeur"]);
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
     if (acces.response) return acces.response;
     const session = acces.session;
 
@@ -28,6 +29,9 @@ export async function POST(req: Request) {
     if (!b.boutiqueId) return fail("Sélectionnez une boutique.");
     if (session.role === "vendeur" && session.boutiqueId && b.boutiqueId !== session.boutiqueId) {
       return fail("Vous ne pouvez vendre que dans votre boutique.", 403);
+    }
+    if (!(await peutAccederBoutique(session, b.boutiqueId))) {
+      return fail("Boutique non autorisée.", 403);
     }
     if (!Array.isArray(b.lignes) || b.lignes.length === 0) return fail("Le panier est vide.");
 
@@ -63,7 +67,7 @@ export async function POST(req: Request) {
 
     const total = lignes.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
     const numero = await prochainNumeroVente();
-    const client = await resoudreClient(prisma, b.clientId, b.clientNom, b.clientTel);
+    const client = await resoudreClient(prisma, b.boutiqueId, b.clientId, b.clientNom, b.clientTel);
     const clientNom = client?.nom ?? b.clientNom?.trim() ?? null;
     const clientTel = client?.telephone ?? b.clientTel?.trim() ?? null;
 

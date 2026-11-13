@@ -21,12 +21,11 @@ const MODES: { value: ModePaiement; label: string; icon: "cash" | "phone" | "fil
 ];
 
 export default function VentesPage() {
-  const { state, creerVente, erreur } = useApp();
+  const { state, creerVente, erreur, setBoutiqueActive } = useApp();
   const boutiquesActives = useMemo(() => state.boutiques.filter((b) => b.actif), [state.boutiques]);
 
-  const [boutiqueId, setBoutiqueId] = useState(() =>
-    state.boutiqueActiveId !== "all" ? state.boutiqueActiveId : boutiquesActives[0]?.id ?? "",
-  );
+  const boutiqueId =
+    state.boutiqueActiveId !== "all" ? state.boutiqueActiveId : boutiquesActives[0]?.id ?? "";
   const [recherche, setRecherche] = useState("");
   const [categorie, setCategorie] = useState("Toutes");
   const [panier, setPanier] = useState<Record<string, number>>({});
@@ -181,9 +180,9 @@ export default function VentesPage() {
           <div className="relative">
             <Icon name="store" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <select
-              value={boutiqueId}
-              onChange={(e) => {
-                setBoutiqueId(e.target.value);
+            value={boutiqueId}
+            onChange={(e) => {
+              setBoutiqueActive(e.target.value);
                 setPanier({});
               }}
               className="appearance-none rounded-xl border border-neutral-200 bg-white py-2.5 pl-9 pr-9 text-sm font-semibold text-neutral-700 outline-none focus:border-emerald-500"

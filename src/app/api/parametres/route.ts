@@ -19,7 +19,7 @@ type Corps = {
 
 export async function PUT(req: Request) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin"]);
     if (acces.response) return acces.response;
 
     const b = await lireJson<Corps>(req);

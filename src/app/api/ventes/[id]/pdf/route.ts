@@ -2,17 +2,25 @@ import { prisma } from "@/lib/server/prisma";
 import { fail, messageErreur } from "@/lib/server/http";
 import { genererDocumentPdf } from "@/lib/server/pdf";
 import { libelleMode } from "@/lib/server/queries";
+import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
+    if (acces.response) return acces.response;
+
     const { id } = await params;
     const vente = await prisma.vente.findUnique({
       where: { id },
       include: { lignes: true, boutique: true },
     });
     if (!vente) return fail("Vente introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, vente.boutiqueId))) {
+      return fail("Vente non autorisée.", 403);
+    }
 
     const p = await prisma.parametres.findUnique({ where: { id: 1 } });
 

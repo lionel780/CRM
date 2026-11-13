@@ -16,23 +16,27 @@ export function verifyPin(pin: string, stored: string): boolean {
   return timingSafeEqual(candidat, attendu);
 }
 
-const UTILISATEURS_DEMO = [
-  { identifiant: "admin", nom: "Administrateur", pin: "1234", role: "admin" as const, boutiqueId: null },
-  { identifiant: "vendeur", nom: "Vendeur Akwa", pin: "1234", role: "vendeur" as const, boutiqueId: "bq-akwa" },
-];
+const SUPER_ADMIN = {
+  identifiant: (process.env.SUPER_ADMIN_IDENTIFIANT || "admin").trim().toLowerCase(),
+  nom: "Super administrateur",
+  pin: process.env.SUPER_ADMIN_PIN || "1234",
+  role: "super_admin",
+};
 
 export async function seedUtilisateurs(prisma: PrismaClient): Promise<void> {
-  for (const u of UTILISATEURS_DEMO) {
-    const existe = await prisma.utilisateur.findUnique({ where: { identifiant: u.identifiant } });
-    if (existe) continue;
-    await prisma.utilisateur.create({
-      data: {
-        identifiant: u.identifiant,
-        nom: u.nom,
-        pin: hashPin(u.pin),
-        role: u.role,
-        boutiqueId: u.boutiqueId,
-      },
-    });
+  const existe = await prisma.utilisateur.findUnique({ where: { identifiant: SUPER_ADMIN.identifiant } });
+  if (existe) {
+    if (existe.role !== SUPER_ADMIN.role) {
+      await prisma.utilisateur.update({ where: { id: existe.id }, data: { role: SUPER_ADMIN.role } });
+    }
+    return;
   }
+  await prisma.utilisateur.create({
+    data: {
+      identifiant: SUPER_ADMIN.identifiant,
+      nom: SUPER_ADMIN.nom,
+      pin: hashPin(SUPER_ADMIN.pin),
+      role: SUPER_ADMIN.role,
+    },
+  });
 }

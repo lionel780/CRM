@@ -81,6 +81,9 @@ export default function BoutiquesPage() {
                   <div>
                     <p className="text-sm font-bold text-neutral-900">{b.nom}</p>
                     <p className="text-xs text-neutral-500">{b.ville}</p>
+                    <p className="text-[11px] text-neutral-400">
+                      Gérant : {b.gerantNom ?? "non assigné"}
+                    </p>
                   </div>
                 </div>
                 <Badge tone={b.actif ? "success" : "neutral"}>{b.actif ? "Active" : "Inactive"}</Badge>

@@ -5,20 +5,25 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { useApp } from "@/lib/store";
 import { formatDate } from "@/lib/format";
+import type { Role } from "@/lib/types";
 import { Icon, type IconName } from "./icons";
 
-const NAV: { href: string; label: string; icon: IconName; adminSeulement?: boolean }[] = [
-  { href: "/", label: "Tableau de bord", icon: "dashboard", adminSeulement: true },
-  { href: "/ventes", label: "Caisse / Ventes", icon: "cart" },
-  { href: "/stock", label: "Stock", icon: "box", adminSeulement: true },
-  { href: "/factures", label: "Factures", icon: "file", adminSeulement: true },
-  { href: "/devis", label: "Devis", icon: "file", adminSeulement: true },
-  { href: "/clients", label: "Clients", icon: "user", adminSeulement: true },
-  { href: "/rappels", label: "Rappels", icon: "bell", adminSeulement: true },
-  { href: "/paiements", label: "Paiements", icon: "wallet", adminSeulement: true },
-  { href: "/rapports", label: "Rapports", icon: "trendUp", adminSeulement: true },
-  { href: "/boutiques", label: "Boutiques", icon: "store", adminSeulement: true },
-  { href: "/parametres", label: "Paramètres", icon: "settings", adminSeulement: true },
+const TOUS: Role[] = ["super_admin", "gerant", "vendeur"];
+const GESTION: Role[] = ["super_admin", "gerant"];
+
+const NAV: { href: string; label: string; icon: IconName; roles: Role[] }[] = [
+  { href: "/", label: "Tableau de bord", icon: "dashboard", roles: GESTION },
+  { href: "/ventes", label: "Caisse / Ventes", icon: "cart", roles: TOUS },
+  { href: "/stock", label: "Stock", icon: "box", roles: TOUS },
+  { href: "/factures", label: "Factures", icon: "file", roles: GESTION },
+  { href: "/devis", label: "Devis", icon: "file", roles: GESTION },
+  { href: "/clients", label: "Clients", icon: "user", roles: GESTION },
+  { href: "/rappels", label: "Rappels", icon: "bell", roles: GESTION },
+  { href: "/paiements", label: "Paiements", icon: "wallet", roles: GESTION },
+  { href: "/rapports", label: "Rapports", icon: "trendUp", roles: GESTION },
+  { href: "/boutiques", label: "Boutiques", icon: "store", roles: GESTION },
+  { href: "/utilisateurs", label: "Utilisateurs", icon: "user", roles: GESTION },
+  { href: "/parametres", label: "Paramètres", icon: "settings", roles: ["super_admin"] },
 ];
 
 const TITRES: Record<string, string> = {
@@ -32,11 +37,19 @@ const TITRES: Record<string, string> = {
   "/paiements": "Paiements Mobile Money",
   "/rapports": "Rapports & analyses",
   "/boutiques": "Mes boutiques",
+  "/utilisateurs": "Utilisateurs & accès",
   "/parametres": "Paramètres",
 };
 
+function libelleRole(role: Role): string {
+  if (role === "super_admin") return "Super administrateur";
+  if (role === "gerant") return "Gérant";
+  return "Vendeur";
+}
+
 function BoutiqueSelect() {
   const { state, setBoutiqueActive } = useApp();
+  const role = state.utilisateur?.role ?? "gerant";
   return (
     <div className="relative">
       <Icon name="store" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -44,9 +57,10 @@ function BoutiqueSelect() {
         value={state.boutiqueActiveId}
         onChange={(e) => setBoutiqueActive(e.target.value)}
         aria-label="Boutique active"
-        className="w-[170px] appearance-none rounded-xl border border-neutral-200 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-neutral-700 outline-none transition hover:border-neutral-300 focus:border-emerald-500 sm:w-[210px]"
+        disabled={state.boutiques.length <= 1}
+        className="w-[170px] appearance-none rounded-xl border border-neutral-200 bg-white py-2 pl-8 pr-8 text-xs font-semibold text-neutral-700 outline-none transition hover:border-neutral-300 focus:border-emerald-500 disabled:opacity-70 sm:w-[210px]"
       >
-        <option value="all">Toutes les boutiques</option>
+        {role !== "vendeur" ? <option value="all">Toutes les boutiques</option> : null}
         {state.boutiques.map((b) => (
           <option key={b.id} value={b.id}>
             {b.nom}
@@ -61,8 +75,8 @@ function BoutiqueSelect() {
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { state, deconnexion } = useApp();
-  const role = state.utilisateur?.role ?? "admin";
-  const nav = NAV.filter((item) => !item.adminSeulement || role === "admin");
+  const role = state.utilisateur?.role ?? "gerant";
+  const nav = NAV.filter((item) => item.roles.includes(role));
 
   const alertesStock = useMemo(
     () => state.produits.filter((p) => p.stock <= p.seuil).length,
@@ -117,7 +131,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="space-y-2 p-3">
-        {role === "admin" ? (
+        {role !== "vendeur" ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
             <div className="flex items-center gap-2 text-emerald-400">
               <Icon name="alert" className="h-4 w-4" />
@@ -147,9 +161,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-white">{state.utilisateur?.nom ?? "Utilisateur"}</p>
-              <p className="text-[10px] uppercase tracking-wide text-emerald-400/80">
-                {role === "admin" ? "Administrateur" : "Vendeur"}
-              </p>
+              <p className="text-[10px] uppercase tracking-wide text-emerald-400/80">{libelleRole(role)}</p>
             </div>
             <button
               onClick={deconnexion}

@@ -1,6 +1,8 @@
 import type { Parametres as PParametres, PrismaClient } from "@prisma/client";
+import type { SessionPayload } from "../session";
 import { prisma } from "./prisma";
 import { seedDatabase } from "./seed-db";
+import { boutiquesAutorisees } from "./tenants";
 import {
   mapBoutique,
   mapClient,
@@ -10,6 +12,7 @@ import {
   mapParametres,
   mapProduit,
   mapRappel,
+  mapUtilisateur,
   mapVente,
 } from "./dto";
 
@@ -29,19 +32,25 @@ export function calculerDettes(
   return dettes;
 }
 
-export async function genererRappelsAuto(prismaClient: PrismaClient, p: PParametres): Promise<void> {
+export async function genererRappelsAuto(
+  prismaClient: PrismaClient,
+  p: PParametres,
+  boutiqueIds?: string[] | null,
+): Promise<void> {
   if (!p.rappelAuto) return;
+  if (boutiqueIds && boutiqueIds.length === 0) return;
   const jours = Math.max(1, p.rappelJours || 7);
   const seuil = new Date(Date.now() - jours * 86_400_000);
+  const whereBoutique = boutiqueIds ? { boutiqueId: { in: boutiqueIds } } : {};
 
   const [clients, ventes, factures] = await Promise.all([
-    prismaClient.client.findMany(),
+    prismaClient.client.findMany({ where: whereBoutique }),
     prismaClient.vente.findMany({
-      where: { statut: "credit", clientId: { not: null } },
+      where: { ...whereBoutique, statut: "credit", clientId: { not: null } },
       select: { clientId: true, total: true, statut: true },
     }),
     prismaClient.facture.findMany({
-      where: { statut: { in: ["envoyee", "retard"] }, clientId: { not: null } },
+      where: { ...whereBoutique, statut: { in: ["envoyee", "retard"] }, clientId: { not: null } },
       select: { clientId: true, total: true, statut: true },
     }),
   ]);
@@ -79,35 +88,81 @@ export async function genererRappelsAuto(prismaClient: PrismaClient, p: PParamet
   }
 }
 
-export async function chargerTout() {
+export async function chargerTout(session: SessionPayload | null) {
   await seedDatabase(prisma);
 
+  const boutiqueIds = await boutiquesAutorisees(session);
+  const whereBoutique = boutiqueIds ? { boutiqueId: { in: boutiqueIds } } : {};
+
   const parametres = await prisma.parametres.findUnique({ where: { id: 1 } });
-  if (parametres) {
+  if (parametres && session && session.role !== "vendeur") {
     try {
-      await genererRappelsAuto(prisma, parametres);
+      await genererRappelsAuto(prisma, parametres, boutiqueIds);
     } catch {
       // le rappel automatique ne doit jamais bloquer le chargement
     }
   }
 
+  if (boutiqueIds && boutiqueIds.length === 0) {
+    return {
+      boutiques: [],
+      produits: [],
+      ventes: [],
+      factures: [],
+      devis: [],
+      clients: [],
+      rappels: [],
+      paiements: [],
+      parametres: mapParametres(parametres),
+      utilisateurs: [],
+    };
+  }
+
   const [boutiques, produits, ventes, factures, devis, clients, rappels, paiements, parametresFinal] =
     await Promise.all([
-      prisma.boutique.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.produit.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.vente.findMany({ include: { lignes: true }, orderBy: { date: "asc" } }),
-      prisma.facture.findMany({ include: { lignes: true }, orderBy: { date: "desc" } }),
-      prisma.devis.findMany({ include: { lignes: true }, orderBy: { date: "desc" } }),
-      prisma.client.findMany({ orderBy: { nom: "asc" } }),
-      prisma.rappel.findMany({ orderBy: { date: "desc" } }),
-      prisma.paiement.findMany({ orderBy: { date: "desc" } }),
+      prisma.boutique.findMany({
+        where: boutiqueIds ? { id: { in: boutiqueIds } } : {},
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.produit.findMany({ where: whereBoutique, orderBy: { createdAt: "asc" } }),
+      prisma.vente.findMany({ where: whereBoutique, include: { lignes: true }, orderBy: { date: "asc" } }),
+      prisma.facture.findMany({ where: whereBoutique, include: { lignes: true }, orderBy: { date: "desc" } }),
+      prisma.devis.findMany({ where: whereBoutique, include: { lignes: true }, orderBy: { date: "desc" } }),
+      prisma.client.findMany({ where: whereBoutique, orderBy: { nom: "asc" } }),
+      prisma.rappel.findMany({
+        where: boutiqueIds ? { client: { boutiqueId: { in: boutiqueIds } } } : {},
+        orderBy: { date: "desc" },
+      }),
+      prisma.paiement.findMany({
+        where: boutiqueIds
+          ? {
+              OR: [
+                { vente: { boutiqueId: { in: boutiqueIds } } },
+                { facture: { boutiqueId: { in: boutiqueIds } } },
+              ],
+            }
+          : {},
+        orderBy: { date: "desc" },
+      }),
       prisma.parametres.findUnique({ where: { id: 1 } }),
     ]);
 
+  const utilisateurs = await prisma.utilisateur.findMany({
+    where:
+      session?.role === "super_admin"
+        ? {}
+        : session?.role === "gerant"
+          ? { OR: [{ id: session.sub }, { boutiqueId: { in: boutiqueIds ?? [] } }] }
+          : { id: session?.sub ?? "" },
+    orderBy: { createdAt: "asc" },
+  });
+
   const dettes = calculerDettes(ventes, factures);
+  const nomsBoutiques = new Map(boutiques.map((b) => [b.id, b.nom]));
+  const nomsUtilisateurs = new Map(utilisateurs.map((u) => [u.id, u.nom]));
 
   return {
-    boutiques: boutiques.map(mapBoutique),
+    boutiques: boutiques.map((b) => mapBoutique(b, b.gerantId ? nomsUtilisateurs.get(b.gerantId) : undefined)),
     produits: produits.map(mapProduit),
     ventes: ventes.map(mapVente),
     factures: factures.map(mapFacture),
@@ -116,6 +171,9 @@ export async function chargerTout() {
     rappels: rappels.map(mapRappel),
     paiements: paiements.map(mapPaiement),
     parametres: mapParametres(parametresFinal),
+    utilisateurs: utilisateurs.map((u) =>
+      mapUtilisateur(u, u.boutiqueId ? nomsBoutiques.get(u.boutiqueId) : undefined),
+    ),
   };
 }
 

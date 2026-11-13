@@ -30,7 +30,7 @@ export type VenteAvecLignes = PVente & { lignes: VenteLigne[] };
 export type FactureAvecLignes = PFacture & { lignes: FactureLigne[] };
 export type DevisAvecLignes = PDevis & { lignes: DevisLigne[] };
 
-export function mapBoutique(b: PBoutique): Boutique {
+export function mapBoutique(b: PBoutique, gerantNom?: string): Boutique {
   return {
     id: b.id,
     nom: b.nom,
@@ -38,6 +38,8 @@ export function mapBoutique(b: PBoutique): Boutique {
     adresse: b.adresse,
     telephone: b.telephone,
     actif: b.actif,
+    gerantId: b.gerantId ?? undefined,
+    gerantNom,
   };
 }
 
@@ -126,6 +128,7 @@ export function mapDevis(d: DevisAvecLignes): Devis {
 export function mapClient(c: PClient, dette = 0): Client {
   return {
     id: c.id,
+    boutiqueId: c.boutiqueId ?? undefined,
     nom: c.nom,
     telephone: c.telephone ?? undefined,
     email: c.email ?? undefined,
@@ -149,13 +152,18 @@ export function mapRappel(r: PRappel): Rappel {
   };
 }
 
-export function mapUtilisateur(u: PUtilisateur): Utilisateur {
+export function mapUtilisateur(u: PUtilisateur, boutiqueNom?: string): Utilisateur {
+  const role: Utilisateur["role"] =
+    u.role === "super_admin" ? "super_admin" : u.role === "gerant" ? "gerant" : "vendeur";
   return {
     id: u.id,
     nom: u.nom,
     identifiant: u.identifiant,
-    role: u.role === "admin" ? "admin" : "vendeur",
+    role,
     boutiqueId: u.boutiqueId ?? undefined,
+    boutiqueNom,
+    actif: u.actif,
+    createdAt: u.createdAt.toISOString(),
   };
 }
 

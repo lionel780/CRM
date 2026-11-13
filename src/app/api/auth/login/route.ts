@@ -21,7 +21,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Identifiant ou PIN incorrect." }, { status: 401 });
     }
 
-    const role = utilisateur.role === "admin" ? "admin" : "vendeur";
+    const role: "super_admin" | "gerant" | "vendeur" =
+      utilisateur.role === "super_admin" ? "super_admin" : utilisateur.role === "gerant" ? "gerant" : "vendeur";
     const token = await createSession({
       sub: utilisateur.id,
       nom: utilisateur.nom,

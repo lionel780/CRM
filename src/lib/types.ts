@@ -4,7 +4,7 @@ export type StatutFacture = "brouillon" | "envoyee" | "payee" | "retard";
 export type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse";
 export type StatutPaiement = "reussi" | "en_attente" | "echoue";
 export type Operateur = "mtn_momo" | "orange_money" | "espece";
-export type Role = "admin" | "vendeur";
+export type Role = "super_admin" | "gerant" | "vendeur";
 
 export interface Utilisateur {
   id: string;
@@ -12,10 +12,14 @@ export interface Utilisateur {
   identifiant: string;
   role: Role;
   boutiqueId?: string;
+  boutiqueNom?: string;
+  actif: boolean;
+  createdAt: string;
 }
 
 export interface Client {
   id: string;
+  boutiqueId?: string;
   nom: string;
   telephone?: string;
   email?: string;
@@ -31,6 +35,8 @@ export interface Boutique {
   adresse: string;
   telephone: string;
   actif: boolean;
+  gerantId?: string;
+  gerantNom?: string;
 }
 
 export interface Produit {
@@ -147,6 +153,7 @@ export interface AppState {
   parametres: Parametres;
   boutiqueActiveId: string;
   utilisateur: Utilisateur | null;
+  utilisateurs: Utilisateur[];
 }
 
 export type PanierLigne = { produitId: string; quantite: number };

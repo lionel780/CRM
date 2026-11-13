@@ -3,6 +3,7 @@ import { mapRappel } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
 import { calculerDettes, genererRappelsAuto } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
+import { boutiquesAutorisees, peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -10,10 +11,14 @@ type Corps = { clientId?: string; montant?: number; message?: string };
 
 export async function GET() {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
-    const rappels = await prisma.rappel.findMany({ orderBy: { date: "desc" } });
+    const boutiqueIds = await boutiquesAutorisees(acces.session);
+    const rappels = await prisma.rappel.findMany({
+      where: boutiqueIds ? { client: { boutiqueId: { in: boutiqueIds } } } : {},
+      orderBy: { date: "desc" },
+    });
     return ok(rappels.map(mapRappel));
   } catch (e) {
     return fail(messageErreur(e), 500);
@@ -22,7 +27,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
     const b = await lireJson<Corps>(req);
@@ -30,6 +35,9 @@ export async function POST(req: Request) {
 
     const client = await prisma.client.findUnique({ where: { id: b.clientId } });
     if (!client) return fail("Client introuvable.", 404);
+    if (client.boutiqueId && !(await peutAccederBoutique(acces.session, client.boutiqueId))) {
+      return fail("Client non autorisé.", 403);
+    }
 
     const [ventes, factures, parametres] = await Promise.all([
       prisma.vente.findMany({
@@ -73,14 +81,18 @@ export async function POST(req: Request) {
 
 export async function PUT() {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
+    const boutiqueIds = await boutiquesAutorisees(acces.session);
     const parametres = await prisma.parametres.findUnique({ where: { id: 1 } });
     if (!parametres) return fail("Paramètres introuvables.", 404);
-    await genererRappelsAuto(prisma, parametres);
+    await genererRappelsAuto(prisma, parametres, boutiqueIds);
 
-    const rappels = await prisma.rappel.findMany({ orderBy: { date: "desc" } });
+    const rappels = await prisma.rappel.findMany({
+      where: boutiqueIds ? { client: { boutiqueId: { in: boutiqueIds } } } : {},
+      orderBy: { date: "desc" },
+    });
     return ok(rappels.map(mapRappel));
   } catch (e) {
     return fail(messageErreur(e), 500);

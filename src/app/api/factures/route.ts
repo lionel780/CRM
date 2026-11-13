@@ -4,6 +4,7 @@ import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
 import { prochainNumeroFacture } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
 import { resoudreClient } from "@/lib/server/clients";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -18,13 +19,16 @@ type Corps = {
 
 export async function POST(req: Request) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
     const b = await lireJson<Corps>(req);
     if (!b.boutiqueId) return fail("Sélectionnez une boutique.");
     if (!b.clientNom?.trim()) return fail("Le nom du client est obligatoire.");
     if (!Array.isArray(b.lignes) || b.lignes.length === 0) return fail("Ajoutez au moins un produit.");
+    if (!(await peutAccederBoutique(acces.session, b.boutiqueId))) {
+      return fail("Boutique non autorisée.", 403);
+    }
 
     const boutique = await prisma.boutique.findUnique({ where: { id: b.boutiqueId } });
     if (!boutique) return fail("Boutique introuvable.", 404);
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
     const taux = parametres?.tva ?? 19.25;
     const tva = Math.round((sousTotal * taux) / 100);
     const numero = await prochainNumeroFacture();
-    const client = await resoudreClient(prisma, b.clientId, b.clientNom, b.clientTel);
+    const client = await resoudreClient(prisma, b.boutiqueId, b.clientId, b.clientNom, b.clientTel);
 
     const echeance = b.echeance ? new Date(b.echeance) : new Date(Date.now() + 15 * 86_400_000);
 

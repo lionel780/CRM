@@ -8,7 +8,9 @@ function secret(): string {
   return process.env.AUTH_SECRET || "boutika-demo-secret-a-changer";
 }
 
-export type Role = "admin" | "vendeur";
+export type Role = "super_admin" | "gerant" | "vendeur";
+
+export const ROLES: Role[] = ["super_admin", "gerant", "vendeur"];
 
 export type SessionPayload = {
   sub: string;
@@ -64,7 +66,7 @@ export async function verifySession(token: string | undefined | null): Promise<S
     if (diff !== 0) return null;
     const payload = JSON.parse(decoder.decode(fromBase64Url(encoded))) as SessionPayload;
     if (!payload?.exp || payload.exp < Date.now()) return null;
-    if (payload.role !== "admin" && payload.role !== "vendeur") return null;
+    if (!ROLES.includes(payload.role)) return null;
     return payload;
   } catch {
     return null;

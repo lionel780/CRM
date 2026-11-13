@@ -22,7 +22,9 @@ import type {
   Parametres,
   Produit,
   Rappel,
+  Role,
   StatutDevis,
+  Utilisateur,
   Vente,
 } from "./types";
 import { seedState } from "./seed";
@@ -75,6 +77,18 @@ interface AppContextValue {
   genererRappels: () => Promise<void>;
   deleteRappel: (id: string) => Promise<void>;
   updateParametres: (patch: Partial<Parametres>) => Promise<void>;
+  addUtilisateur: (u: {
+    nom: string;
+    identifiant: string;
+    pin: string;
+    role: Role;
+    boutiqueId?: string;
+  }) => Promise<void>;
+  updateUtilisateur: (
+    id: string,
+    patch: Partial<Pick<Utilisateur, "nom" | "actif" | "role" | "boutiqueId">> & { pin?: string },
+  ) => Promise<void>;
+  deleteUtilisateur: (id: string) => Promise<void>;
   resetDemo: () => Promise<void>;
   deconnexion: () => Promise<void>;
 }
@@ -86,7 +100,15 @@ export function Providers({ children }: { children: ReactNode }) {
   const [erreur, setErreur] = useState<string | null>(null);
 
   const appliquer = useCallback((data: DonneesServeur) => {
-    setState((s) => ({ ...s, ...data }));
+    setState((s) => {
+      let boutiqueActiveId = s.boutiqueActiveId;
+      if (data.utilisateur?.role === "vendeur") {
+        boutiqueActiveId = data.boutiques[0]?.id ?? "all";
+      } else if (boutiqueActiveId !== "all" && !data.boutiques.some((b) => b.id === boutiqueActiveId)) {
+        boutiqueActiveId = "all";
+      }
+      return { ...s, ...data, boutiqueActiveId };
+    });
   }, []);
 
   const rafraichir = useCallback(async () => {
@@ -267,11 +289,14 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   const addClient = useCallback(
-    async (c: { nom: string; telephone?: string; email?: string; adresse?: string }) =>
-      tenter(async () =>
-        requete<Client>("/api/clients", { method: "POST", body: JSON.stringify(c) }),
-      ),
-    [tenter],
+    async (c: { nom: string; telephone?: string; email?: string; adresse?: string }) => {
+      const boutiqueId =
+        state.boutiqueActiveId !== "all" ? state.boutiqueActiveId : state.boutiques[0]?.id;
+      return tenter(async () =>
+        requete<Client>("/api/clients", { method: "POST", body: JSON.stringify({ ...c, boutiqueId }) }),
+      );
+    },
+    [tenter, state.boutiqueActiveId, state.boutiques],
   );
 
   const updateClient = useCallback(
@@ -386,6 +411,39 @@ export function Providers({ children }: { children: ReactNode }) {
     [tenter],
   );
 
+  const addUtilisateur = useCallback(
+    async (u: { nom: string; identifiant: string; pin: string; role: Role; boutiqueId?: string }) => {
+      await tenter(async () => {
+        await requete("/api/utilisateurs", { method: "POST", body: JSON.stringify(u) });
+        return true;
+      });
+    },
+    [tenter],
+  );
+
+  const updateUtilisateur = useCallback(
+    async (
+      id: string,
+      patch: Partial<Pick<Utilisateur, "nom" | "actif" | "role" | "boutiqueId">> & { pin?: string },
+    ) => {
+      await tenter(async () => {
+        await requete(`/api/utilisateurs/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+        return true;
+      });
+    },
+    [tenter],
+  );
+
+  const deleteUtilisateur = useCallback(
+    async (id: string) => {
+      await tenter(async () => {
+        await requete(`/api/utilisateurs/${id}`, { method: "DELETE" });
+        return true;
+      });
+    },
+    [tenter],
+  );
+
   const resetDemo = useCallback(async () => {
     await tenter(async () => {
       const data = await requete<DonneesServeur>("/api/reset", { method: "POST" });
@@ -429,6 +487,9 @@ export function Providers({ children }: { children: ReactNode }) {
       genererRappels,
       deleteRappel,
       updateParametres,
+      addUtilisateur,
+      updateUtilisateur,
+      deleteUtilisateur,
       resetDemo,
       deconnexion,
     }),
@@ -461,6 +522,9 @@ export function Providers({ children }: { children: ReactNode }) {
       genererRappels,
       deleteRappel,
       updateParametres,
+      addUtilisateur,
+      updateUtilisateur,
+      deleteUtilisateur,
       resetDemo,
       deconnexion,
     ],

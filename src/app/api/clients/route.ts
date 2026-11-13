@@ -3,10 +3,12 @@ import { mapClient } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
 import { calculerDettes } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
+import { boutiqueParDefaut, boutiquesAutorisees, peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
 type Corps = {
+  boutiqueId?: string;
   nom?: string;
   telephone?: string;
   email?: string;
@@ -15,17 +17,24 @@ type Corps = {
 
 export async function GET() {
   try {
-    const acces = await verifierAcces(["admin", "vendeur"]);
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
     if (acces.response) return acces.response;
 
+    const boutiqueIds = await boutiquesAutorisees(acces.session);
+    const where = boutiqueIds ? { boutiqueId: { in: boutiqueIds } } : {};
+
     const [clients, ventes, factures] = await Promise.all([
-      prisma.client.findMany({ orderBy: { nom: "asc" } }),
+      prisma.client.findMany({ where, orderBy: { nom: "asc" } }),
       prisma.vente.findMany({
-        where: { statut: "credit", clientId: { not: null } },
+        where: { statut: "credit", clientId: { not: null }, ...(boutiqueIds ? { boutiqueId: { in: boutiqueIds } } : {}) },
         select: { clientId: true, total: true, statut: true },
       }),
       prisma.facture.findMany({
-        where: { statut: { in: ["envoyee", "retard"] }, clientId: { not: null } },
+        where: {
+          statut: { in: ["envoyee", "retard"] },
+          clientId: { not: null },
+          ...(boutiqueIds ? { boutiqueId: { in: boutiqueIds } } : {}),
+        },
         select: { clientId: true, total: true, statut: true },
       }),
     ]);
@@ -39,16 +48,31 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const acces = await verifierAcces(["admin", "vendeur"]);
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
     if (acces.response) return acces.response;
+    const session = acces.session;
 
     const b = await lireJson<Corps>(req);
     const nom = b.nom?.trim();
     if (!nom) return fail("Le nom du client est obligatoire.");
 
+    let boutiqueId: string | null = null;
+    if (session.role === "vendeur") {
+      boutiqueId = session.boutiqueId ?? null;
+    } else if (b.boutiqueId) {
+      if (!(await peutAccederBoutique(session, b.boutiqueId))) {
+        return fail("Boutique non autorisée.", 403);
+      }
+      boutiqueId = b.boutiqueId;
+    } else {
+      boutiqueId = await boutiqueParDefaut(session);
+    }
+
     const telephone = b.telephone?.trim() || null;
     if (telephone) {
-      const existant = await prisma.client.findFirst({ where: { telephone } });
+      const existant = await prisma.client.findFirst({
+        where: { telephone, ...(boutiqueId ? { boutiqueId } : {}) },
+      });
       if (existant) return ok(mapClient(existant, 0));
     }
 
@@ -58,6 +82,7 @@ export async function POST(req: Request) {
         telephone,
         email: b.email?.trim() || null,
         adresse: b.adresse?.trim() || null,
+        boutiqueId,
       },
     });
     return ok(mapClient(cree, 0), 201);

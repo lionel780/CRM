@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST() {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin"]);
     if (acces.response) return acces.response;
 
     await prisma.$transaction(async (tx) => {
@@ -22,10 +22,11 @@ export async function POST() {
       await tx.produit.deleteMany();
       await tx.client.deleteMany();
       await tx.boutique.deleteMany();
+      await tx.utilisateur.deleteMany({ where: { role: { not: "super_admin" } } });
       await tx.parametres.deleteMany();
     }, { timeout: 20000, maxWait: 10000 });
 
-    const data = await chargerTout();
+    const data = await chargerTout(acces.session);
     return Response.json(data);
   } catch (e) {
     return fail(messageErreur(e), 500);

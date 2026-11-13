@@ -3,6 +3,7 @@ import { mapClient } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
 import { calculerDettes } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -15,13 +16,16 @@ type Corps = {
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
     if (acces.response) return acces.response;
 
     const { id } = await params;
     const b = await lireJson<Corps>(req);
     const existe = await prisma.client.findUnique({ where: { id } });
     if (!existe) return fail("Client introuvable.", 404);
+    if (existe.boutiqueId && !(await peutAccederBoutique(acces.session, existe.boutiqueId))) {
+      return fail("Client non autorisé.", 403);
+    }
 
     const maj = await prisma.client.update({
       where: { id },
@@ -53,12 +57,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
     const { id } = await params;
     const existe = await prisma.client.findUnique({ where: { id } });
     if (!existe) return fail("Client introuvable.", 404);
+    if (existe.boutiqueId && !(await peutAccederBoutique(acces.session, existe.boutiqueId))) {
+      return fail("Client non autorisé.", 403);
+    }
     await prisma.client.delete({ where: { id } });
     return ok({ ok: true });
   } catch (e) {

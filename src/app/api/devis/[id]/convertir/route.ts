@@ -3,17 +3,21 @@ import { mapFacture } from "@/lib/server/dto";
 import { fail, messageErreur, ok } from "@/lib/server/http";
 import { prochainNumeroFacture } from "@/lib/server/queries";
 import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const acces = await verifierAcces(["admin"]);
+    const acces = await verifierAcces(["super_admin", "gerant"]);
     if (acces.response) return acces.response;
 
     const { id } = await params;
     const devis = await prisma.devis.findUnique({ where: { id }, include: { lignes: true } });
     if (!devis) return fail("Devis introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, devis.boutiqueId))) {
+      return fail("Devis non autorisé.", 403);
+    }
 
     const numero = await prochainNumeroFacture();
     const echeance = new Date(Date.now() + 15 * 86_400_000);

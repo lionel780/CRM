@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/server/prisma";
 import { mapFacture } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, nouveauReference, ok } from "@/lib/server/http";
+import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -9,6 +11,9 @@ const OPERATEURS = ["mtn_momo", "orange_money", "espece"];
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant"]);
+    if (acces.response) return acces.response;
+
     const { id } = await params;
     const b = await lireJson<Corps>(req);
     const operateur = b.operateur ?? "mtn_momo";
@@ -16,6 +21,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const facture = await prisma.facture.findUnique({ where: { id }, include: { lignes: true } });
     if (!facture) return fail("Facture introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, facture.boutiqueId))) {
+      return fail("Facture non autorisée.", 403);
+    }
 
     if (facture.statut === "payee") return ok(mapFacture(facture));
 

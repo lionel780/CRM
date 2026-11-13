@@ -1,17 +1,25 @@
 import { prisma } from "@/lib/server/prisma";
 import { fail, messageErreur } from "@/lib/server/http";
 import { genererDocumentPdf } from "@/lib/server/pdf";
+import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant"]);
+    if (acces.response) return acces.response;
+
     const { id } = await params;
     const devis = await prisma.devis.findUnique({
       where: { id },
       include: { lignes: true, boutique: true },
     });
     if (!devis) return fail("Devis introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, devis.boutiqueId))) {
+      return fail("Devis non autorisé.", 403);
+    }
 
     const p = await prisma.parametres.findUnique({ where: { id: 1 } });
 

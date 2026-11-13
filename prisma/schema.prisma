@@ -15,15 +15,22 @@ model Boutique {
   adresse   String
   telephone String
   actif     Boolean   @default(true)
+  gerantId  String?
+  gerant    Utilisateur? @relation("BoutiquesGerant", fields: [gerantId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now())
   produits  Produit[]
   ventes    Vente[]
   factures  Facture[]
   devis     Devis[]
+  clients   Client[]
+
+  @@index([gerantId])
 }
 
 model Client {
   id        String    @id @default(cuid())
+  boutiqueId String?
+  boutique   Boutique? @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
   nom       String
   telephone String?
   email     String?
@@ -34,6 +41,7 @@ model Client {
   devis     Devis[]
   rappels   Rappel[]
 
+  @@index([boutiqueId])
   @@index([nom])
   @@index([telephone])
 }
@@ -47,8 +55,10 @@ model Utilisateur {
   boutiqueId  String?
   actif       Boolean  @default(true)
   createdAt   DateTime @default(now())
+  boutiques   Boutique[] @relation("BoutiquesGerant")
 
   @@index([role])
+  @@index([boutiqueId])
 }
 
 model Produit {

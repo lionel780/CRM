@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/server/prisma";
 import { mapProduit } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
+import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -19,13 +21,25 @@ type Corps = {
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
+    if (acces.response) return acces.response;
+
     const { id } = await params;
     const b = await lireJson<Corps>(req);
     const existe = await prisma.produit.findUnique({ where: { id } });
     if (!existe) return fail("Produit introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, existe.boutiqueId))) {
+      return fail("Produit non autorisé.", 403);
+    }
+    if (b.boutiqueId && !(await peutAccederBoutique(acces.session, b.boutiqueId))) {
+      return fail("Boutique non autorisée.", 403);
+    }
+    if (acces.session.role === "vendeur" && b.boutiqueId && b.boutiqueId !== existe.boutiqueId) {
+      return fail("Vous ne pouvez pas déplacer un produit.", 403);
+    }
 
     if (typeof b.stockDelta === "number") {
-      await prisma.$executeRaw`UPDATE "Produit" SET "stock" = MAX(0, "stock" + ${Math.round(b.stockDelta)}) WHERE "id" = ${id}`;
+      await prisma.$executeRaw`UPDATE "Produit" SET "stock" = GREATEST(0, "stock" + ${Math.round(b.stockDelta)}) WHERE "id" = ${id}`;
       const maj = await prisma.produit.findUnique({ where: { id } });
       return ok(mapProduit(maj ?? existe));
     }
@@ -50,9 +64,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant"]);
+    if (acces.response) return acces.response;
+
     const { id } = await params;
     const existe = await prisma.produit.findUnique({ where: { id } });
     if (!existe) return fail("Produit introuvable.", 404);
+    if (!(await peutAccederBoutique(acces.session, existe.boutiqueId))) {
+      return fail("Produit non autorisé.", 403);
+    }
     await prisma.produit.delete({ where: { id } });
     return ok({ ok: true });
   } catch (e) {

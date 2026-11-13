@@ -5,7 +5,7 @@ import { Icon } from "@/components/icons";
 import { Button, inputClass, labelClass } from "@/components/ui";
 
 export default function LoginPage() {
-  const [identifiant, setIdentifiant] = useState("admin");
+  const [identifiant, setIdentifiant] = useState("");
   const [pin, setPin] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(false);
@@ -26,6 +26,7 @@ export default function LoginPage() {
         return;
       }
       window.location.href = data?.role === "vendeur" ? "/ventes" : "/";
+
     } catch {
       setErreur("Erreur réseau.");
     } finally {
@@ -58,7 +59,7 @@ export default function LoginPage() {
                 onChange={(e) => setIdentifiant(e.target.value)}
                 autoComplete="username"
                 className={`${inputClass} border-white/10 bg-white/5 text-white placeholder:text-neutral-500`}
-                placeholder="admin ou vendeur"
+                placeholder="Votre identifiant"
               />
             </div>
             <div>
@@ -83,15 +84,12 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[11px] leading-relaxed text-neutral-400">
-            <p className="font-semibold text-neutral-300">Comptes de démonstration</p>
-            <p className="mt-1">
-              Admin — <span className="font-mono text-emerald-300">admin / 1234</span> (accès complet)
-            </p>
-            <p>
-              Vendeur — <span className="font-mono text-emerald-300">vendeur / 1234</span> (caisse uniquement)
-            </p>
-          </div>
+          <p className="mt-5 text-center text-xs text-neutral-400">
+            Pas encore de compte gérant ?{" "}
+            <a href="/inscription" className="font-semibold text-emerald-400 hover:text-emerald-300">
+              Inscrire ma boutique
+            </a>
+          </p>
         </div>
       </div>
     </div>

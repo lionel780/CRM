@@ -126,8 +126,12 @@ export default function DashboardPage() {
   return (
     <div>
       <PageHeader
-        title="Bonjour, Groupe Sawa Distribution"
-        subtitle="Voici l'activité de vos boutiques aujourd'hui à Douala."
+        title={`Bonjour, ${state.utilisateur?.nom ?? state.parametres.entreprise}`}
+        subtitle={
+          state.utilisateur?.role === "super_admin"
+            ? "Vue consolidée de toutes les boutiques de la plateforme."
+            : "Voici l'activité de vos boutiques aujourd'hui."
+        }
         actions={
           <>
             <Button variant="secondary" icon="download" onClick={exporter}>

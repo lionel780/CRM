@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/server/prisma";
 import { mapProduit } from "@/lib/server/dto";
 import { fail, lireJson, messageErreur, ok } from "@/lib/server/http";
+import { verifierAcces } from "@/lib/server/auth-guard";
+import { peutAccederBoutique } from "@/lib/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -18,10 +20,21 @@ type Corps = {
 
 export async function POST(req: Request) {
   try {
+    const acces = await verifierAcces(["super_admin", "gerant", "vendeur"]);
+    if (acces.response) return acces.response;
+    const session = acces.session;
+
     const b = await lireJson<Corps>(req);
     if (!b.nom?.trim()) return fail("Le nom du produit est obligatoire.");
     if (!b.boutiqueId) return fail("Sélectionnez une boutique.");
     if (!b.prixVente || b.prixVente <= 0) return fail("Le prix de vente doit être supérieur à 0.");
+
+    if (session.role === "vendeur" && session.boutiqueId !== b.boutiqueId) {
+      return fail("Vous ne pouvez gérer que le stock de votre boutique.", 403);
+    }
+    if (!(await peutAccederBoutique(session, b.boutiqueId))) {
+      return fail("Boutique non autorisée.", 403);
+    }
 
     const boutique = await prisma.boutique.findUnique({ where: { id: b.boutiqueId } });
     if (!boutique) return fail("Boutique introuvable.", 404);

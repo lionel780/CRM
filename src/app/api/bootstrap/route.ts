@@ -10,22 +10,20 @@ export async function GET() {
     const session = await sessionCourante();
     if (!session) return fail("Authentification requise.", 401);
 
-    const data = await chargerTout();
-    const utilisateur = {
+    const data = await chargerTout(session);
+    const utilisateur = data.utilisateurs.find((u) => u.id === session.sub) ?? {
       id: session.sub,
       nom: session.nom,
       identifiant: session.identifiant,
       role: session.role,
       boutiqueId: session.boutiqueId ?? undefined,
+      actif: true,
+      createdAt: new Date().toISOString(),
     };
 
     if (session.role === "vendeur") {
-      const boutiqueId = session.boutiqueId;
       return Response.json({
         ...data,
-        boutiques: data.boutiques.filter((b) => !boutiqueId || b.id === boutiqueId),
-        produits: data.produits.filter((p) => !boutiqueId || p.boutiqueId === boutiqueId),
-        ventes: data.ventes.filter((v) => !boutiqueId || v.boutiqueId === boutiqueId),
         factures: [],
         devis: [],
         rappels: [],

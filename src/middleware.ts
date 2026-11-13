@@ -1,20 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-const ROUTES_VENDEUR = ["/ventes", "/api/ventes", "/api/bootstrap", "/api/clients", "/api/auth"];
+const ROUTES_VENDEUR = [
+  "/ventes",
+  "/stock",
+  "/api/ventes",
+  "/api/produits",
+  "/api/clients",
+  "/api/bootstrap",
+  "/api/auth",
+];
 
-function vendeurAutorise(pathname: string): boolean {
-  return ROUTES_VENDEUR.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+const ROUTES_SUPER_ADMIN = ["/parametres", "/api/parametres"];
+
+function prefixeAutorise(pathname: string, routes: string[]): boolean {
+  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+function accueil(role: string): string {
+  return role === "vendeur" ? "/ventes" : "/";
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/inscription") {
     if (!session) return NextResponse.next();
     const url = request.nextUrl.clone();
-    url.pathname = session.role === "vendeur" ? "/ventes" : "/";
+    url.pathname = accueil(session.role);
     url.search = "";
     return NextResponse.redirect(url);
   }
@@ -31,12 +45,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (session.role === "vendeur" && !vendeurAutorise(pathname)) {
+  if (session.role === "vendeur" && !prefixeAutorise(pathname, ROUTES_VENDEUR)) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Accès réservé à l'administrateur." }, { status: 403 });
+      return NextResponse.json({ error: "Accès non autorisé pour votre rôle." }, { status: 403 });
     }
     const url = request.nextUrl.clone();
     url.pathname = "/ventes";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (session.role !== "super_admin" && prefixeAutorise(pathname, ROUTES_SUPER_ADMIN)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Accès réservé au super administrateur." }, { status: 403 });
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = accueil(session.role);
     url.search = "";
     return NextResponse.redirect(url);
   }
